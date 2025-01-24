@@ -79,8 +79,6 @@ class GeneralizedPoisson(Distribution):
             self._validate_sample(value)
 
         eps = jnp.finfo(float).eps
-        # NOTE: The masking needs more investigation for numerical stability
-        # mask = self.delta < jnp.maximum(-1.0, -self.lam / 4.0)
         mask = self.delta < jnp.maximum(-1.0, -self.lam / value)
         post_value = self.lam + self.delta * value
         safe_post_value = jnp.where(mask, eps, post_value)
