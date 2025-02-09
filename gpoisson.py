@@ -77,23 +77,29 @@ class GeneralizedPoisson(Distribution):
         """
         if self._validate_args:
             self._validate_sample(value)
-
+        z = self.lam + self.delta * value
         eps = jnp.finfo(float).eps
-        mask = self.delta < jnp.maximum(-1.0, -self.lam / value)
-        post_value = self.lam + self.delta * value
-        safe_post_value = jnp.where(mask, eps, post_value)
-        log_safe_post_value = jnp.where(mask, -10, jnp.log(safe_post_value))
-        log_prob = (
-            jnp.log(self.lam)
-            + (value - 1) * log_safe_post_value
-            - safe_post_value
-            - jax.scipy.special.gammaln(value + 1)
+        m = jnp.floor_divide(-self.lam + eps, self.delta).astype(int)
+        th = 4
+        mask = (self.delta < 0.0) & (
+            (self.lam + self.delta * m < 0.0) | (m < th) | (value > m)
         )
 
-        return log_prob
+        return jnp.where(
+            mask,
+            # NOTE: The masked values are experimental. Issues can arise with
+            # numerical stability.
+            jnp.minimum(value * jnp.log(self.lam), 0.0)
+            - self.lam
+            - jax.scipy.special.gammaln(value + 1),
+            jnp.log(self.lam)
+            + (value - 1) * jnp.log(z)
+            - z
+            - jax.scipy.special.gammaln(value + 1),
+        )
 
     @property
-    def mean(self):
+    def mean(self) -> jax.Array:
         """Mean of the generalized Poisson distribution.
 
         Returns:
@@ -102,7 +108,7 @@ class GeneralizedPoisson(Distribution):
         return self.lam / (1.0 - self.delta)
 
     @property
-    def variance(self):
+    def variance(self) -> jax.Array:
         """Variance of the generalized Poisson distribution.
 
         Returns:
